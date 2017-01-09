@@ -5,6 +5,12 @@
 % The base C grammar
 include "C.Grm"
 
+% Comment out this line to disallow Gnu gcc extensions
+include "CGnuOverrides.Grm"
+
+% Comment out this line to disallow parsing of comments
+include "CCommentOverrides.Grm"
+
 % My extra string functions ( [before] and [after] )
 include "StringUtils.Rul"
 
@@ -22,12 +28,12 @@ include "OptimizeTranslatedDart.Rul"
 
 function main
     replace [program]
-	ExtDefs [repeat externaldefinition]
+	ExtDefs [repeat C_compilation_unit]
 
-    construct TuringProgram [repeat externaldefinition]
+    construct TuringProgram [repeat C_compilation_unit]
 	_ [changeExternalDef each ExtDefs]
 
-    construct NewTuringProgram [repeat externaldefinition]
+    construct NewTuringProgram [repeat C_compilation_unit]
 	TuringProgram [moveMain] 
 		      [stripMainFunctionHeader]
     by
@@ -36,11 +42,11 @@ function main
 end function
 
 
-function changeExternalDef ExtDef [externaldefinition]
-    replace [repeat externaldefinition]
-	SoFar [repeat externaldefinition]
+function changeExternalDef ExtDef [C_compilation_unit]
+    replace [repeat C_compilation_unit]
+	SoFar [repeat C_compilation_unit]
 	
-    construct NewExtDef [externaldefinition]
+    construct NewExtDef [C_compilation_unit]
 	ExtDef [translateCConst]
 	       [translateCType]
 	       [translateCVar]
@@ -52,14 +58,14 @@ end function
 
 %% move the 'main' function to the end of the function block
 function moveMain
-    replace * [repeat externaldefinition]
+    replace * [repeat C_compilation_unit]
 	'function 'main ': TS [type_specifier]
-		D [repeat externaldefinition]
+		D [repeat C_compilation_unit]
 		S [repeat statement]
 	'end 'main
-	Rest [repeat externaldefinition]
+	Rest [repeat C_compilation_unit]
 
-    construct NewMain [externaldefinition]
+    construct NewMain [C_compilation_unit]
 	'function 'main ': TS
 		D
 		S
@@ -70,9 +76,9 @@ end function
 
 %% remove the function header from the main function
 function stripMainFunctionHeader
-    replace * [externaldefinition]
+    replace * [C_compilation_unit]
 	'function 'main ': TS [type_specifier]
-		D [repeat externaldefinition]
+		D [repeat C_compilation_unit]
 		S [repeat statement]
 	'end 'main
 
