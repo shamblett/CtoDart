@@ -6,17 +6,17 @@
 include "C.Grm"
 
 % My extra string functions ( [before] and [after] )
-include "MyStringUtils.Rul"
+include "StringUtils.Rul"
 
 % Translation grammar overrides, to make translations convenient
-include "CtoTOverrides.Grm"
+include "CtoDartOverrides.Grm"
 
 % Translation rule sets
 include "TranslateDecls.Rul"
 include "TranslateStatements.Rul"
 include "TranslateFunctions.Rul"
 include "TranslateExpressions.Rul"
-include "OptimizeTranslatedTuring.Rul"
+include "OptimizeTranslatedDart.Rul"
 
 % Main translation rule set
 
@@ -32,6 +32,7 @@ function main
 		      [stripMainFunctionHeader]
     by
 	NewTuringProgram [optimizeTuring]
+	
 end function
 
 
