@@ -1,0 +1,544 @@
+% TXL 7.7a4
+% Andy Maloney, Queen's University, January 1995
+%	[part of 499 project]
+
+
+%% *****
+%% statements
+
+function translateCStatements CStatement [statement]			
+    replace [repeat statement]
+	SoFar [repeat statement]
+    construct NewTuringStatement [statement]
+	CStatement [changeCStatement]
+    by
+	SoFar [. NewTuringStatement]
+end function
+
+function changeCStatement
+    replace [statement]
+	S [statement]
+    construct NewS [statement]
+	S [changeExprStatement]
+	  [changeIfStatement]
+	%% Loop statements
+	  [changeDoWhileStatement]
+	  [changeWhileStatement]
+	  [changeForStatement]
+	%% Jump statements
+	  [changeReturnStatement]
+	  [changeBreakStatement]
+    deconstruct not NewS
+	S
+    by
+	NewS
+end function			
+
+function removeBrackets
+    replace [repeat statement]
+	'{
+	    RS [repeat statement]
+	'}
+    by
+	RS
+end function
+
+
+
+%% *****
+%% expression statements
+
+redefine expression_statement
+  %% C
+	[expression] ';  [NL]
+    |
+  %% Turing
+      %% expression with semicolon removed
+	[expression]  [NL]
+    |
+      %% simple printf
+	'put [stringlit] [SP] [opt '..]  [NL]
+    |
+      %% complex printf
+	'put [list putArg] [SP] [opt '..]  [NL]
+    |
+      %% simple scanf
+	'get [list assignment_expression]  [NL]
+    |
+      %% copy string
+	[stringlit] ':= [stringlit]  [NL]
+    |
+      %% concat string [where second arg of strcat is a literal]
+	[identifier] ':= [identifier] '+ [stringlit]  [NL]
+    |
+      %% concat string [where second arg of strcat is another identifier]
+	[identifier] ':= [identifier] '+ [identifier]  [NL]
+end redefine
+
+redefine putArg
+	[stringlit]
+    |	[assignment_expression]
+end redefine
+
+rule changeExprStatement
+    replace [statement]
+	ES [expression_statement] 
+    construct NewES [expression_statement]
+	ES [removeSemiColon]
+	   [removeAmpersand]
+	   [changeAssignment]
+	   [changeBasicPrintf]
+	   [changeComplexPrintf]
+	   [changeBasicScanf]
+	   [changeStrCopy]
+	   [changeStrCat]
+	   [changePrePlusPlus]
+	   [changePostPlusPlus]
+	   [changePreMinusMinus]
+	   [changePostMinusMinus]
+	   [changeArrayBrackets]		%% changeArrayBrackets defined in expr_t.C
+    deconstruct not NewES
+	ES
+    by
+	NewES 
+end rule
+
+function removeSemiColon
+    replace [expression_statement]
+	E [expression] ';
+    by
+	E [changeExpression]
+end function
+
+function removeAmpersand
+    replace * [cast_expression]
+	'& CE [cast_expression]
+    by
+	CE
+end function
+
+
+%% *****
+%% assignment statements
+
+redefine assignment_expression
+  %% C
+	[conditional_expression]
+    |	[unary_expression] [assignment_operator] [assignment_expression]
+  %% Turing
+    |	[cast_expression] ':= [expression]
+end redefine
+
+
+function changeAssignment
+    replace [expression_statement]
+	CE1 [cast_expression] '= CE2 [cast_expression] RBO [repeat binary_operation]
+    by
+	CE1 ':= CE2 RBO
+end function
+
+
+
+%% *****
+%% printf statements
+
+function changeBasicPrintf
+    replace [expression_statement]
+	'printf '( SL[stringlit] ')
+    by
+	'put SL '..
+end function
+
+function changeComplexPrintf
+    replace [expression_statement]
+	'printf '( LE [list assignment_expression+] ')
+    construct repeatExpr [repeat assignment_expression]
+	_ [. each LE]
+    deconstruct repeatExpr
+	SL [stringlit] Rest [repeat assignment_expression]
+    construct NewArgList [list putArg]
+	_ [translatePutArgs SL Rest]			
+    construct putStatement [expression_statement]
+	'put NewArgList [removeEmptyArg] '..
+    by
+	putStatement [removeOptDotDot]
+end function
+
+function translatePutArgs SL [stringlit] RAE [repeat assignment_expression]			
+    replace [list putArg]
+	SoFar [list putArg]
+    construct beforePercent [stringlit]		% get everything before the next percent
+	SL [before "%"] [replaceEmpty SL RAE]
+    construct NewSL [putArg]
+	beforePercent
+    where not					% terminating condition
+	beforePercent [?replaceEmpty SL RAE]
+    construct afterPercent [stringlit]		% get everything after the percent sign
+	SL [after "%"]
+    construct restSL [stringlit]		% skip the next character
+	afterPercent [: 2 9999] 		% 2nd to last character
+    construct RestAE [repeat assignment_expression]
+	_ [getRest RAE]
+    construct recurse [list putArg]
+	_ [translatePutArgs restSL RestAE]  
+    by
+	SoFar [, NewSL] [addAE RAE] [, recurse]
+end function
+
+%% we only want to replace the "" if there are no assignment expr left
+function replaceEmpty restSL [stringlit] RAE [repeat assignment_expression]
+    replace [stringlit]
+	""
+    where not
+	RAE [?notEmpty]
+    by
+	restSL
+end function
+
+function notEmpty
+    match [repeat assignment_expression]
+	AE [assignment_expression] RestAE [repeat assignment_expression]
+end function
+	
+function addAE RAE [repeat assignment_expression]
+    deconstruct RAE
+	AE [assignment_expression] RestAE [repeat assignment_expression]
+    replace [list putArg]
+	LPA [list putArg]
+    construct NewPA [putArg]
+	AE
+    by
+	LPA [, NewPA]
+end function
+
+function getRest RAE [repeat assignment_expression]
+    replace [repeat assignment_expression]
+	Rest [repeat assignment_expression]
+    deconstruct RAE
+	AE [assignment_expression] RestAE [repeat assignment_expression]
+    by
+	RestAE
+end function
+
+function removeEmptyArg
+    replace * [list_1_putArg]
+	"" ', Tail [list_1_putArg]
+    by
+	Tail 
+end function
+
+function removeOptDotDot
+    replace [expression_statement]
+	'put LPA [list putArg] '..
+    construct NewLPA [list putArg]
+	LPA [removeNewline]
+    %%deconstruct not NewLPA 
+    	%%LPA
+    by
+	'put NewLPA
+end function
+
+function removeNewline
+    replace * [list putArg]
+	S [stringlit]
+    by
+	% nothing
+end function
+
+
+%% *****
+%% scanf statements
+
+function changeBasicScanf
+    replace [expression_statement]
+	'scanf '( LE [list assignment_expression+] ')
+    construct repeatExpr [repeat assignment_expression]
+	_ [. each LE]
+    deconstruct repeatExpr
+	SL [stringlit] Rest [repeat assignment_expression]
+    construct listExpr [list assignment_expression]
+	_ [, each Rest]
+    by
+	'get listExpr
+end function
+
+
+%% *****
+%% str statements
+
+function changeStrCopy
+    replace [expression_statement]
+	ES [expression_statement]
+    by
+	ES [changeCopyWithLiteral]
+	   [changeCopyWithIdentifier]
+end function
+
+function changeCopyWithLiteral
+    replace [expression_statement]
+	'strcpy '( N [identifier] ', SL [stringlit] ')
+    by
+	N ':= SL
+end function
+
+function changeCopyWithIdentifier
+    replace [expression_statement]
+	'strcpy '( N [identifier] ', N2 [identifier] ')
+    by
+	N ':= N2
+end function
+
+function changeStrCat
+    replace [expression_statement]
+	ES [expression_statement]
+    by
+	ES [changeCatWithLiteral]
+	   [changeCatWithIdentifier]
+end function
+
+function changeCatWithLiteral
+    replace [expression_statement]
+	'strcat '( N [identifier] ', SL [stringlit] ')
+    by
+	N ':= N '+ SL
+end function
+
+function changeCatWithIdentifier
+    replace [expression_statement]
+	'strcat '( N [identifier] ', N2 [identifier] ')
+    by
+	N ':= N '+ N2
+end function
+
+
+%% *****
+%% increment/decrement statements
+
+function changePrePlusPlus
+    replace [expression_statement]
+	'++ ID [identifier]
+    by
+	ID ':= ID '+ 1
+end function
+
+function changePostPlusPlus
+    replace [expression_statement]
+	ID [identifier] '++ 
+    by
+	ID ':= ID '+ 1
+end function
+
+function changePreMinusMinus
+    replace [expression_statement]
+	'-- ID [identifier]
+    by
+	ID ':= ID '- 1
+end function
+
+function changePostMinusMinus
+    replace [expression_statement]
+	ID [identifier] '-- 
+    by
+	ID ':= ID '- 1
+end function
+
+
+
+%% *****
+%% loop statements
+
+redefine iteration_statement
+  %% C
+	'while '( [expression] ')  [NL]
+	    [statement]
+    |
+	'do
+	    [statement] 
+	'while '( [expression] ') ';  [NL]
+    |
+	'for '( [expression] '; [expression] '; [expression] ')  [NL]
+	    [statement]
+  %% Turing
+    |
+	'loop				[NL][IN]
+	    [repeat statement]		[EX]
+	'end 'loop			[NL]
+    |
+	'for [opt 'decreasing] [opt identifier] : [expression] '.. [expression] 	[NL][IN]
+	    [repeat statement]								[EX]
+	'end 'for									[NL]
+end redefine
+
+
+redefine init_statement
+    [repeat statement+]	
+end redefine
+
+
+function changeDoWhileStatement
+    replace [statement]
+	'do
+	    S [statement] 
+	'while '( E [expression] ') ';
+    construct exitCondition [statement]	
+	'exit 'when 'not '( E [changeExpression] ')
+    construct NewS [repeat statement]
+	S 
+    construct NewS2 [repeat statement]
+	NewS [removeBrackets]
+    construct NewBody [repeat statement]
+	_ [translateCStatements each NewS2]
+    by
+	'loop
+	    NewBody [. exitCondition]
+	'end 'loop
+end function
+
+function changeWhileStatement
+    replace [statement]
+	'while '( E [expression] ') 
+	    S [statement]
+    construct exitCondition [statement]	
+	'exit 'when 'not '( E [changeExpression] ')
+    construct NewS [repeat statement]
+	S 
+    construct NewS2 [repeat statement]
+	NewS [removeBrackets]
+    construct NewBody [repeat statement]
+	_ [translateCStatements each NewS2]
+    by
+	'loop
+	    exitCondition 
+	    NewBody
+	'end 'loop
+end function
+
+function changeForStatement
+    replace [statement]
+	'for '( I [expression] '; C [expression] '; S1 [expression] ') 
+	    S2 [statement]
+    construct InitStatement [statement]
+	I
+    construct NewInitStatement [statement]
+	InitStatement [changeCStatement]
+    construct exitCondition [statement]	
+	'exit 'when 'not '( C [changeExpression] ')
+    construct NewFinalStatement [repeat statement]
+	S1
+    construct NewS [repeat statement]
+	S2 
+    construct NewS2 [repeat statement]
+	NewS [removeBrackets] [. NewFinalStatement]
+    construct NewBody [repeat statement]
+	_ [translateCStatements each NewS2]
+    by
+	'begin
+	    NewInitStatement
+	    'loop
+		exitCondition
+		NewBody
+	    'end 'loop
+	'end
+end function
+
+
+
+%% *****
+%% if statements
+
+redefine if_statement
+  %% C
+	'if '( [expression] ') 
+	    [statement] 
+	[opt ELSEstatement]
+    |
+  %% Turing
+	'if [expression] 'then		[NL][IN]
+	    [repeat statement]		[EX]
+	[opt ELSEstatement]
+	'end 'if			[NL]
+end redefine
+
+redefine ELSEstatement
+  %% C
+  %% Turing
+    'else 				[IN][NL]
+	[statement]			[EX]
+|
+  %% Turing
+    'elsif [expression] 'then		[IN][NL]
+	[repeat statement]		[EX]
+     [opt ELSEstatement]
+end redefine
+
+
+function changeIfStatement
+    replace [statement]
+	'if '( E [expression] ')
+	    S [statement]
+	OE [opt ELSEstatement]
+    construct NewS [repeat statement]
+	S
+    construct NewS2 [repeat statement]
+	NewS [removeBrackets]
+    construct NewBody [repeat statement]
+	_ [translateCStatements each NewS2]
+    by
+	'if E [changeExpression] 'then
+	    NewBody
+	OE [changeElse]
+	'end 'if
+end function
+
+% change 'else if' statments to 'elsif' statments
+rule changeElse
+    replace [ELSEstatement]
+	'else 'if '( E [expression] ')
+	    S [statement]
+	OE [opt ELSEstatement]
+    construct NewS [repeat statement]
+	S
+    construct NewS2 [repeat statement]
+	NewS [removeBrackets]
+    construct NewBody [repeat statement]
+	_ [translateCStatements each NewS2]
+    by
+	'elsif E [changeExpression] 'then
+	    NewBody
+	OE [changeElse]
+end rule
+
+
+%% *****
+%% jump statements
+
+redefine jump_statement
+  %% C
+	'goto [identifier] '; 			[NL]
+    |	'continue '; 				[NL]
+    |	'break '; 				[NL]
+    |	'return [opt expression] '; 		[NL]
+    |	'return '( [opt expression] ') ';	[NL]
+  %% Turing
+    |	'result [expression]			[NL]
+    |	'exit [opt whenPart]			[NL]
+end redefine
+
+redefine whenPart
+    'when [opt 'not] '( [expression] ')
+end redefine
+
+function changeReturnStatement
+    replace [statement]
+	'return E [expression] ';
+    by
+	'result E [changeExpression]
+end function
+
+function changeBreakStatement
+    replace [statement]
+	'break ';
+    by
+	'exit
+end function
+

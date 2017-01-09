@@ -1,0 +1,160 @@
+% TXL 7.7a4
+% Andy Maloney, Queen's University, January 1995
+%	[part of 499 project]
+
+
+%% *****
+%% common to consts, vars, typedefs, and function arguments
+%%
+
+function changeType
+    construct CTypes [repeat type_specifier]
+    	'char 'long 'float 'double
+    construct TuringTypes [repeat type_specifier]
+    	'string(1) 'int 'real 'real
+    replace * [type_specifier]
+        CType [type_specifier]
+    by
+	CType [$ each CTypes TuringTypes]
+end function
+
+
+%% change array of chars to string
+function changeToStringSpec
+    replace * [type_specifier]
+	'array 0 .. N [number] 'of 'char
+    construct NewN [number]
+	N [+ 1]
+    construct NewTuringTypeSpec [type_specifier]
+	'string '( NewN ')
+    by
+	NewTuringTypeSpec
+end function
+
+
+%% *****
+%% constants
+%%
+
+redefine t_constDecl
+    'const [identifier] ': [type_specifier] ':= [expression]  [NL]
+end redefine
+
+
+function translateCConst
+    replace [externaldefinition]
+	'const T [type_specifier] N [identifier] '= E [expression] ';
+    construct NewType [type_specifier]
+	T [changeType]
+    by	
+	'const N ': NewType ':= E
+end function
+
+	
+%% *****
+%% types
+%%
+
+redefine t_typeDecl
+    'type [identifier] : [type_specifier]  [NL]
+end redefine
+
+function translateCType
+    replace [externaldefinition]
+	'typedef T [type_specifier] OP [opt pointer] N [identifier] OAP [opt array_part] ';
+    construct NewType [type_specifier]
+	T [changeType]
+    construct NewTuringType [externaldefinition]
+	'type N : NewType
+    by
+	NewTuringType
+end function
+
+
+%% *****
+%% vars
+%%
+
+redefine t_varDecl
+	[t_var]
+    |   [repeat t_var]
+end redefine
+
+redefine t_var
+    'var [decl_identifier] ': [type_specifier] [opt t_initialisation]  [NL]
+end redefine
+
+redefine t_initialisation
+    ':= [expression]
+end redefine
+
+function translateCVar
+    replace [externaldefinition]
+	T [type_specifier] D [list decl_id_part+] ';
+    construct NewTuringVar [repeat t_var]
+	_ [translatePointerVarDecl T each D]
+	  [translateVarDecl T each D]
+    construct NewED [externaldefinition]
+	NewTuringVar
+    by
+	NewED
+end function
+
+%% translate var declarations NOT returning pointers to types
+function translateVarDecl T [type_specifier] D [decl_id_part]
+    deconstruct D
+	DI [decl_identifier] OAP [opt array_part] OI [opt initialisation]
+    replace [repeat t_var]
+	SoFar [repeat t_var]
+    construct TuringVar [t_var]
+	'var DI ': T
+    construct NewTuringVar [t_var]
+	TuringVar [addOptArrayPart OAP]
+		  [addOptInit OI]
+		  [changeType]
+    by
+	SoFar [. NewTuringVar]	
+end function
+
+%% translate var declarations returning pointers to types
+function translatePointerVarDecl T [type_specifier] D [decl_id_part]
+    deconstruct D
+	'* DI [decl_identifier] OAP [opt array_part] OI [opt initialisation]
+    deconstruct T
+	'char
+    replace [repeat t_var]
+	SoFar [repeat t_var]
+    construct TuringVar [t_var]
+	'var DI ': 'string
+    construct NewTuringVar [t_var]
+	TuringVar [addOptArrayPart OAP]
+		  [addOptInit OI]
+    by
+	SoFar [. NewTuringVar]	
+end function
+
+%% add initialisation if it exists
+function addOptInit OI [opt initialisation]
+    deconstruct OI
+	'= E [expression]
+    replace [t_var]
+	'var DI [decl_identifier] ': T [type_specifier]
+    by
+	'var DI ': T ':= E [changeExpression]
+end function
+
+%% add array part if it exists
+function addOptArrayPart OAP[opt array_part]
+    deconstruct OAP
+	'[ N [number] ']
+    replace [t_var]
+	'var DI [decl_identifier] ': T [type_specifier]
+    construct NewN [number]
+	N [- 1]
+    construct TuringArraySpec [type_specifier]
+	'array 0 .. NewN 'of T
+    construct NewTuringArraySpec [type_specifier]
+	TuringArraySpec [changeToStringSpec]
+    by
+	'var DI ': NewTuringArraySpec
+end function

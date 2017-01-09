@@ -1,0 +1,52 @@
+% TXL 7.7a4
+% Andy Maloney, Queen's University, March 1995
+%	[part of 499 project]
+
+
+
+function changeArrayBrackets
+    replace * [unary_expression]
+	PE [primary_expression] '[ E [expression] ']
+    by
+	PE '( E ')
+end function
+
+
+redefine binary_operator
+  %% C
+	+  | -  | *  | / | '% 
+    |	== | != | <  | > | <= | >=
+    |	'|| | && | '| | ^ | & 
+    |	<< | >> 
+    |	.* | ->*
+  %% Turing
+    |	'=
+    |	'not=
+    |	'and
+    |	'or
+    |	'mod
+end redefine
+
+
+rule changeExpression
+    construct COps [repeat binary_operator]
+        '== '!= '&& '|| '%
+    construct TuringOps [repeat binary_operator]
+    	'= 'not= 'and 'or 'mod
+    replace [expression]
+	E [expression]
+    construct NewE [expression]
+	E [changeOp each COps TuringOps]
+	  [changeArrayBrackets]
+    deconstruct not NewE
+	E 
+    by
+	NewE 
+end rule
+
+function changeOp COp [binary_operator] TuringOp [binary_operator]
+    replace * [binary_operator]
+	COp
+    by
+	TuringOp
+end function

@@ -1,0 +1,58 @@
+% TXL 7.7a4
+% Andy Maloney, Queen's University, March 1995
+%	[part of 499 project]
+%
+%  This file contains the optimizing functions for Turing.
+
+
+function optimizeTuring
+    replace [repeat externaldefinition]
+	Program [repeat externaldefinition]
+    by
+	Program [changeToFor]
+end function
+
+
+rule changeToFor
+    % We have to match this in pieces due to the strange parse created 
+    % by the previous transforms
+    % If this were a separate post-pass, it could be simplified to one pattern
+    replace [repeat statement]
+	'begin
+	    RS [repeat statement]
+	'end
+	RestOfScope [repeat statement]
+    deconstruct RS
+	ID1 [id] ':= E1 [expression]	
+	'loop
+	    JS [jump_statement]
+	    RSI [repeat statement]
+	'end 'loop
+    deconstruct JS
+	'exit 'when 'not '( ID1 '< E2 [unary_expression] )
+    where not
+	RestOfScope [references ID1]
+    skipping [statement] deconstruct * [repeat statement] RSI
+	ID1 := ID1 + 1
+    construct NewID [id]
+	ID1 [!]
+    by
+	'for NewID : E1 '.. E2
+	    RSI [trimIncrement]
+		[$ ID1 NewID]
+	'end 'for
+	RestOfScope
+end rule
+
+function references ID [id]
+    match * [id]
+	ID
+end function
+
+function trimIncrement
+    skipping [statement]
+    replace * [repeat statement]
+    	Last [statement]
+    by
+    	% nothing
+end function
