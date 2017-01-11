@@ -15,25 +15,18 @@ include "CCommentOverrides.Grm"
 include "TranslateDecls.Rul"
 
 % Main translation rule set
-
 function main
-    replace [program]
-	ExtDefs [repeat C_compilation_unit]
-
-    construct DartProgram [repeat C_compilation_unit]
-	_ [changeExternalDef each ExtDefs]
-	
+	replace [program]
+		ExtDefs [repeat C_compilation_unit]
+	by
+		_ [changeExternalDef each ExtDefs]
 end function
 
-
 function changeExternalDef ExtDef [C_compilation_unit]
-    replace [repeat C_compilation_unit]
-	SoFar [repeat C_compilation_unit]
-	
-    construct NewExtDef [C_compilation_unit]
-	ExtDef [translateCConst]
-	       [translateCType]
-	       [translateCVar]
-    by
-	SoFar [. NewExtDef]
+	replace [repeat C_compilation_unit]
+		SoFar [repeat C_compilation_unit]
+	construct NewExtDef [C_compilation_unit]
+		ExtDef [translateCConst] [translateCType] [translateCVar]
+	by
+		SoFar [. NewExtDef]
 end function
