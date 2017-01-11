@@ -2,20 +2,27 @@
 % Andy Maloney, Queen's University, January 1995
 %	[part of 499 project]
 
+% Declaration translation defines
 
-%% *****
-%% common to consts, vars, typedefs, and function arguments
-%%
+define initialisation
+    '= [expression]
+end define
+
+define array_part
+    '[ [constant] ']
+end define
+
+% Declaration translations
 
 function changeType
     construct CTypes [repeat type_specifier]
     	'char 'long 'float 'double
-    construct TuringTypes [repeat type_specifier]
+    construct DartTypes [repeat type_specifier]
     	'string(1) 'int 'real 'real
     replace * [type_specifier]
         CType [type_specifier]
     by
-	CType [$ each CTypes TuringTypes]
+	CType [$ each CTypes DartTypes]
 end function
 
 
@@ -37,7 +44,7 @@ end function
 %%
 
 redefine t_constDecl
-    'const [identifier] ': [type_specifier] ':= [expression]  [NL]
+    'const [id] ': [type_specifier] ':= [expression]  [NL]
 end redefine
 
 
@@ -56,7 +63,7 @@ end function
 %%
 
 redefine t_typeDecl
-    'type [identifier] : [type_specifier]  [NL]
+    'type [id] : [type_specifier]  [NL]
 end redefine
 
 function translateCType
@@ -81,7 +88,7 @@ redefine t_varDecl
 end redefine
 
 redefine t_var
-    'var [decl_identifier] ': [type_specifier] [opt t_initialisation]  [NL]
+    'var [id] ': [type_specifier] [opt t_initialisation]  [NL]
 end redefine
 
 redefine t_initialisation
