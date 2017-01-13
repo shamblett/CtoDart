@@ -12,7 +12,24 @@ include "CGnuOverrides.Grm"
 include "CCommentOverrides.Grm"
 
 % Translation rule sets
-include "TranslateDecls.Rul"
+%include "TranslateDecls.Rul"
+
+function changeType
+    construct CTypes [repeat type_specifier]
+    	'float 
+    construct DartTypes [repeat type_specifier]
+    	'double
+    replace * [type_specifier]
+        CType [type_specifier]
+    by
+	CType [$ each CTypes DartTypes]
+	
+end function
+
+redefine type_qualifier
+	[empty] [SP]
+end redefine
+
 
 % Main translation rule set
 %function main
@@ -35,6 +52,7 @@ function main
 	replace [program]
 		EntireInput [program]
 	by
-		EntireInput 
+		EntireInput [changeType]
+		           
 		 
 end function

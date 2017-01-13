@@ -4,3 +4,14 @@
 
 % Declaration translations
 
+function changeType
+    construct CTypes [repeat type_specifier]
+    	'char 'long 'float 'double
+    construct DartTypes [repeat type_specifier]
+    	'string 'int 'double 'double
+    replace * [type_specifier]
+        CType [type_specifier]
+    by
+	CType [$ each CTypes DartTypes]
+	
+end function
