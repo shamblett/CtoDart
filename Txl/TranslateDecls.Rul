@@ -3,15 +3,36 @@
 %	[part of 499 project]
 
 % Declaration translations
-
 function changeType
-    construct CTypes [repeat type_specifier]
-    	'char 'long 'float 'double
-    construct DartTypes [repeat type_specifier]
-    	'string 'int 'double 'double
-    replace * [type_specifier]
-        CType [type_specifier]
-    by
-	CType [$ each CTypes DartTypes]
-	
+	construct CTypes [repeat simple_type_name]
+		'char 'float
+	construct DartTypes [repeat simple_type_name]
+		'int 'double
+	replace * [simple_type_name]
+		CType [simple_type_name]
+	by
+		CType [$ each CTypes DartTypes]
+end function
+
+rule dropTQ
+	replace [repeat decl_qualifier]
+		_ [type_qualifier]
+	by
+	%%nothing
+end rule
+
+redefine struct_or_union
+    ... 
+    | 'class
+end redefine
+
+function changeStruct
+	construct CTypes [repeat struct_or_union]
+		'struct 'union
+	construct DartTypes [repeat struct_or_union]
+		'class 'class
+	replace * [struct_or_union]
+		CType [struct_or_union]
+	by
+		CType [$ each CTypes DartTypes]
 end function
